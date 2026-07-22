@@ -19,13 +19,13 @@ pre-commit フックが上記の多くを自動検知してブロックします
 ## オーナー名
 
 - 本名「水上翔平」と本名のフルネームは記事に出さない
-- 公開ペンネームは「じぇい先生」のみ
+- 公開ペンネームは「水上先生」のみ
 - これ以外の名前を絶対に創作しない（memory: feedback_owner-name-strict 準拠）
 
 ## 書いてよいこと
 
 - 中学受験国語の解法・教材レビュー・入試傾向
-- じぇい先生メソッド（即答法／増し法／マクロ→ミクロ／ゴール設定→肉付け）の解説
+- 水上先生メソッド（即答法／増し法／マクロ→ミクロ／ゴール設定→肉付け）の解説
 - アフィリエイトリンク（A8/もしも/Amazon等、自社サービス bridgeStar/ThreeStars 含む）
 - 一般的な保護者向け情報（ただし特定の生徒・家庭が想起される書き方はNG）
 
@@ -56,7 +56,7 @@ memory: feedback_subject-color-scheme 準拠
 
 ## 関連メモリ
 
-- [[reference_kokugo-method-notion]] — じぇい先生メソッドの正典
+- [[reference_kokugo-method-notion]] — 水上先生メソッドの正典
 - [[reference_kokugo-kaiho-framework]] — 解法フレーム
 - [[reference_kansai-chugaku-japanese]] — 関西中学受験国語の傾向
 - [[reference_kokugosensei-domain-dns]] — DNS 管理（Xserver）
