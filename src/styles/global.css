@@ -75,6 +75,9 @@ body {
 	-webkit-font-smoothing: antialiased;
 	text-rendering: optimizeLegibility;
 	overflow-x: hidden;
+	/* 日本語を文節単位で折り返し、「個別指/導」のような不自然な改行を避ける（未対応ブラウザは通常折返しにフォールバック） */
+	line-break: strict;
+	word-break: auto-phrase;
 }
 
 a { color: inherit; text-decoration: none; }
