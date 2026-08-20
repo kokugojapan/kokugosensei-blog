@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "test": "astro build && node scripts/check-aio.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

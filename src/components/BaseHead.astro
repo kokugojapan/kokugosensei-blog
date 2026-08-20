@@ -9,10 +9,11 @@ interface Props {
 	title: string;
 	description: string;
 	image?: ImageMetadata;
+	type?: 'website' | 'article';
 }
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
-const { title, description, image = FallbackImage } = Astro.props;
+const { title, description, image = FallbackImage, type = 'website' } = Astro.props;
 ---
 
 <!-- Global Metadata -->
@@ -55,7 +56,7 @@ const { title, description, image = FallbackImage } = Astro.props;
 <meta name="description" content={description} />
 
 <!-- Open Graph / Facebook -->
-<meta property="og:type" content="website" />
+<meta property="og:type" content={type} />
 <meta property="og:url" content={Astro.url} />
 <meta property="og:site_name" content="国語先生.COM ブログ" />
 <meta property="og:locale" content="ja_JP" />
