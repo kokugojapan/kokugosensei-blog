@@ -1,6 +1,6 @@
 # ブログ記事 自動生成＋公開パイプライン
 
-`CONTENT-BACKLOG.md` の未生成の最上位トピックをVPS上のCodexが毎日1本生成し、安全ガードを通ったものだけ自動で公開する仕組み。
+`CONTENT-BACKLOG.md` の未生成の最上位トピックをVPS上のClaudeが毎日1本生成し、安全ガードを通ったものだけ自動で公開する仕組み。
 
 ## 何を自動化するか（と、しないか）
 
@@ -11,7 +11,7 @@
 
 | ファイル | 役割 |
 |---|---|
-| `_tools/auto/run.sh` | 本体。選定→Codex生成→安全ガード→公開(commit/push)またはレビュー隔離 |
+| `_tools/auto/run.sh` | 本体。選定→Claude生成→安全ガード→公開(commit/push)またはレビュー隔離 |
 | `_tools/auto/prompt.tmpl.md` | 生成レシピ（信頼境界・NG・文体・自己点検） |
 | `_tools/auto/selftest.sh` | sandbox・bypass禁止・候補選定を確認する最小self-test |
 | `_tools/auto/com.shohei.kokugo-blog-auto.plist` | 旧Mac launchd定義（現在はdisabled。VPS systemdが単独owner） |
@@ -29,7 +29,8 @@
 - Owner: VPS systemd `kokugo-blog-auto.timer`
 - 時刻: 毎日05:30 JST
 - Mac `com.shohei.kokugo-blog-auto`: disabled / unloaded（二重起動防止）
-- AI生成: `codex exec --sandbox workspace-write --ephemeral --ignore-user-config`
+- 文章生成: Claude Sonnet（`dontAsk`）。Bash／Web／MCP／サブエージェントは渡さず、Read／Write／Edit／Glob／Grepだけを許可
+- Claude sandbox: `enabled=true`、`failIfUnavailable=true`、`allowUnsandboxedCommands=false`、bypass無効
 
 ## 操作（VPS）
 
@@ -45,6 +46,7 @@ systemd timer の `OnCalendar` で時刻を変える（現状は1回1本）。�
 
 ## 注意
 
-- git pull/commit/push はrun.shが直接行い、AIにはGit操作をさせない。Codexのwrite-setは指定記事1ファイルだけか機械検査する。
+- git pull/commit/push はrun.shが直接行い、ClaudeにはGit操作をさせない。Claudeのwrite-setは指定記事1ファイルだけか機械検査する。
+- VPSのsandbox部品は `~/.local/state/kokugo-blog-auto/sandbox-bin/{bwrap,socat}`。run.shがSHA-256を照合し、欠落・改変時は生成せず通知する。
 - push失敗時はVPSローカルcommit済のまま通知する。その場合は状態を確認してから必要なcommitだけをpushする。
 - 独自資産系を書きたいときは対話で「〇〇（志望校/塾）の記事を書いて」と言う。骨子を作って一次情報を足す運用。

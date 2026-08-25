@@ -7,11 +7,19 @@ PROMPT="$REPO_DIR/_tools/auto/prompt.tmpl.md"
 BACKLOG="$REPO_DIR/CONTENT-BACKLOG.md"
 
 bash -n "$RUNNER"
-grep -q -- '--sandbox workspace-write' "$RUNNER"
-grep -q -- '--ephemeral' "$RUNNER"
-grep -q -- '--ignore-user-config' "$RUNNER"
+grep -q -- '--model "$CLAUDE_MODEL"' "$RUNNER"
+grep -q -- '--permission-mode dontAsk' "$RUNNER"
+grep -q -- '--tools "Read,Write,Edit,Glob,Grep"' "$RUNNER"
+grep -q -- '"enabled":true' "$RUNNER"
+grep -q -- '"failIfUnavailable":true' "$RUNNER"
+grep -q -- '"allowUnsandboxedCommands":false' "$RUNNER"
+grep -q -- '--strict-mcp-config' "$RUNNER"
 if grep -Eq 'bypassPermissions|dangerously-bypass-approvals-and-sandbox' "$RUNNER"; then
   echo "SELFTEST_FAIL unsafe bypass flag found" >&2
+  exit 1
+fi
+if grep -Eq 'codex exec|CODEX_MODEL|CODEX_BIN' "$RUNNER"; then
+  echo "SELFTEST_FAIL article generation must use Claude, not Codex" >&2
   exit 1
 fi
 grep -q 'src/content/blog/__SLUG__.md' "$PROMPT"

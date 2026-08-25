@@ -1,10 +1,10 @@
 #!/bin/bash
 # 中受国語ブログ 記事自動生成＋公開 — VPS systemd kokugo-blog-auto.timer から毎日発火。
-# CONTENT-BACKLOG.md の未生成の最上位（AUTO=method系クラスタのみ）を1本 Codex で生成し、
+# CONTENT-BACKLOG.md の未生成の最上位（AUTO=method系クラスタのみ）を1本 Claude で生成し、
 # 安全ガードを通ったものだけ git commit+push して自動公開する（GitHub Actions が blog.kokugosensei.com へデプロイ）。
 # 独自資産系（志望校別・塾別・テーマ論・語彙漢字・読書）はこのジョブでは扱わない（対話で人間レビュー）。
 #
-# 設計方針: git操作は全てこのシェルが行う。Codex は workspace-write sandbox 内で本文だけを保存し、
+# 設計方針: git操作は全てこのシェルが行う。Claude はBash/Web/MCPなしで本文だけを保存し、
 #   シェルはstdoutの KOKUGO_BLOG_META 行（機微なし）だけをログに残す。ガード不通過は _drafts/ へ隔離し公開しない。
 #   ~/.local/state/kokugo-blog-auto/disabled があれば何もしない（キルスイッチ）。DRY_RUN=1 で push せずテスト。
 
@@ -28,8 +28,11 @@ DONE="$STATE_DIR/done.txt"
 LOG_FILE="$LOG_DIR/kokugo-blog-auto.log"
 ERR_LOG="$LOG_DIR/kokugo-blog-auto.err.log"
 PUB_LOG="$LOG_DIR/kokugo-blog-auto.published.log"
-CODEX="${CODEX_BIN:-$HOME/.local/bin/codex}"
-CODEX_MODEL="${CODEX_MODEL:-gpt-5.5}"
+CLAUDE="${CLAUDE_BIN:-$HOME/.local/bin/claude}"
+CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-5}"
+CLAUDE_SANDBOX_BIN="${CLAUDE_SANDBOX_BIN:-$STATE_DIR/sandbox-bin}"
+EXPECTED_BWRAP_SHA256="77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c"
+EXPECTED_SOCAT_SHA256="4ba71cb9e75952234ca0f3af74db33ba017d6d8c66b1ccd323e80aa9bd80f0a9"
 NOTIFY_FAIL="$HOME/.local/bin/notify-failure.sh"
 TN="/opt/homebrew/bin/terminal-notifier"          # macOSのみ
 NOTIFY_SLACK="$HOME/.local/bin/notify-slack.sh"   # VPS側のバナー代替
@@ -52,11 +55,42 @@ banner() {
     "$NOTIFY_SLACK" "$1" "$2" >/dev/null 2>&1 || true
   fi
 }
-# gtimeout/timeoutが無い環境でも動くようにラップする
-run_codex() {
-  local args=(exec --model "$CODEX_MODEL" --sandbox workspace-write --ephemeral
-    --ignore-user-config --color never -C "$REPO" -c 'model_reasoning_effort="medium"' -)
-  if [ -n "$GTIMEOUT" ]; then "$GTIMEOUT" 1200 "$CODEX" "${args[@]}"; else "$CODEX" "${args[@]}"; fi
+# Claudeには記事作成に必要なネイティブのファイルツールだけを渡す。
+# シェル・ネットワーク・MCP・サブエージェントは露出せず、権限確認が必要な操作はdontAskで拒否する。
+run_claude() {
+  local prompt="$1"
+  local settings='{"permissions":{"disableBypassPermissionsMode":"disable","deny":["Bash","WebFetch","WebSearch","Agent","Task"]},"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false,"network":{"allowedDomains":[]}}}'
+  local args=(-p "$prompt" --model "$CLAUDE_MODEL" --permission-mode dontAsk
+    --tools "Read,Write,Edit,Glob,Grep" --allowedTools "Read,Write,Edit,Glob,Grep"
+    --settings "$settings" --strict-mcp-config --mcp-config '{"mcpServers":{}}'
+    --disable-slash-commands --no-chrome --no-session-persistence --safe-mode --output-format text)
+  if [ -n "$GTIMEOUT" ]; then
+    env PATH="$CLAUDE_SANDBOX_BIN:$PATH" "$GTIMEOUT" 1200 "$CLAUDE" "${args[@]}"
+  else
+    env PATH="$CLAUDE_SANDBOX_BIN:$PATH" "$CLAUDE" "${args[@]}"
+  fi
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+check_sandbox_dependency() {
+  local name="$1" expected="$2" path="$CLAUDE_SANDBOX_BIN/$1"
+  if [ ! -x "$path" ]; then
+    log "Claude sandbox dependency missing: $path"
+    "$NOTIFY_FAIL" "$JOB" 1 "$ERR_LOG" "missing sandbox dependency: $name"
+    return 1
+  fi
+  if [ "$(sha256_file "$path")" != "$expected" ]; then
+    log "Claude sandbox dependency checksum mismatch: $path"
+    "$NOTIFY_FAIL" "$JOB" 1 "$ERR_LOG" "sandbox dependency checksum mismatch: $name"
+    return 1
+  fi
 }
 
 # キルスイッチ
@@ -76,7 +110,7 @@ if ! git pull --ff-only --quiet 2>>"$ERR_LOG"; then
   exit 0
 fi
 
-# Codex に渡す前の作業ツリーはclean必須。既存変更をAI生成と混ぜない。
+# Claude に渡す前の作業ツリーはclean必須。既存変更をAI生成と混ぜない。
 if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
   log "作業ツリーがcleanではないため中断。"
   "$NOTIFY_FAIL" "$JOB" 1 "$ERR_LOG" "working tree is not clean"
@@ -134,14 +168,16 @@ PROMPT="${PROMPT}
 
 （本日の実日付: ${TODAY} JST。frontmatter の pubDate は本日 ${PUBDATE} を使う。）"
 
-# ---- Codex生成（workspace-write sandbox・ephemeral・user configなし） ----
+# ---- Claude生成（Bash/Web/MCPなし・sandbox fail-closed・bypass禁止） ----
 FILE="src/content/blog/$SLUG.md"
-run_codex <<< "$PROMPT" \
-  2>>"$ERR_LOG" | { grep '^KOKUGO_BLOG_META' || true; } >> "$LOG_FILE"
-CRC=${PIPESTATUS[0]}
-if [ "$CRC" -ne 0 ]; then
-  log "WARN: codex exited $CRC"
-  "$NOTIFY_FAIL" "$JOB" "$CRC" "$ERR_LOG" "codex exited"
+check_sandbox_dependency bwrap "$EXPECTED_BWRAP_SHA256" || exit 0
+check_sandbox_dependency socat "$EXPECTED_SOCAT_SHA256" || exit 0
+CLAUDE_OUT=$(run_claude "$PROMPT" 2>>"$ERR_LOG")
+CLAUDE_RC=$?
+printf '%s\n' "$CLAUDE_OUT" | grep '^KOKUGO_BLOG_META' >> "$LOG_FILE" || true
+if [ "$CLAUDE_RC" -ne 0 ]; then
+  log "WARN: claude exited $CLAUDE_RC"
+  "$NOTIFY_FAIL" "$JOB" "$CLAUDE_RC" "$ERR_LOG" "claude exited"
 fi
 
 if [ ! -f "$FILE" ]; then
@@ -153,7 +189,7 @@ fi
 # 指定記事以外に変更があれば公開しない。sandbox内でもwrite-setを機械的に限定する。
 UNEXPECTED=$(git status --porcelain --untracked-files=all | grep -vFx "?? $FILE" || true)
 if [ -n "$UNEXPECTED" ]; then
-  log "Codexが指定記事以外を変更したため中断。"
+  log "Claudeが指定記事以外を変更したため中断。"
   printf '%s\n' "$UNEXPECTED" >> "$ERR_LOG"
   "$NOTIFY_FAIL" "$JOB" 1 "$ERR_LOG" "unexpected write-set"
   exit 0
@@ -215,7 +251,7 @@ fi
 git add "$FILE"
 if git commit -q -m "自動記事: $TITLE
 
-CONTENT-BACKLOG よりVPS Codexで自動生成（$CLUSTER）。合格実績・生徒情報・本名は不使用。" 2>>"$ERR_LOG"; then
+CONTENT-BACKLOG よりVPS Claudeで自動生成（$CLUSTER）。合格実績・生徒情報・本名は不使用。" 2>>"$ERR_LOG"; then
   if git push -q origin main 2>>"$ERR_LOG"; then
     echo "$SLUG" >> "$DONE"
     printf -- "- %s  %s  https://blog.kokugosensei.com/blog/%s/  (%s字)\n" "$TODAY" "$TITLE" "$SLUG" "$BODYCHARS" >> "$PUB_LOG"
