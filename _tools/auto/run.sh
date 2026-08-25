@@ -204,6 +204,7 @@ grep -Eq '合格実績|進学実績|合格者|合格率|[0-9０-９]+[人名][^�
 grep -q '水上先生' "$FILE" && addfail "自称水上先生"
 grep -q '，\|．' "$FILE" && addfail "，．混入"
 grep -q '\*\*' "$FILE" && addfail "太字**"
+grep -Eq 'この記事では|本記事では' "$FILE" && addfail "AI定型導入"
 grep -Eq '0[0-9]{1,3}-?[0-9]{2,4}-?[0-9]{3,4}' "$FILE" && addfail "電話番号らしき数字"
 grep -q 'lin.ee/6IRtEXI' "$FILE" || addfail "LINE導線なし"
 grep -q '個別指導のご相談' "$FILE" || addfail "CTA見出しなし"
