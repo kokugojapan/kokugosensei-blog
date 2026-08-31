@@ -1,0 +1,70 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+---
+
+<!doctype html>
+<html lang="ja">
+	<head>
+		<BaseHead
+			title="プライバシーポリシー｜国語先生.COM ブログ"
+			description="国語先生.COM ブログにおける広告配信、Cookie、外部サービスの利用について説明します。"
+			includeAds={false}
+		/>
+	</head>
+	<body>
+		<Header />
+		<main id="content">
+			<section class="section narrow">
+				<p class="section-kicker">Privacy Policy</p>
+				<h1>プライバシーポリシー</h1>
+				<div class="prose">
+					<p>
+						国語先生.COM ブログ（以下「当サイト」）は、広告配信などで取り扱われる情報について、次のとおり定めます。
+					</p>
+
+					<h2>広告配信について</h2>
+					<p>当サイトでは、第三者配信の広告サービス「Google AdSense」を利用しています。</p>
+					<p>
+						Googleを含む第三者配信事業者は、広告の配信、効果測定、不正行為の防止、利用者に合わせた広告の表示などのため、Cookieを設定または読み取るほか、ウェブビーコン、IPアドレス、閲覧したページのURLなどの情報を使用する場合があります。
+					</p>
+					<p>
+						Googleによる情報の利用については、<a
+							href="https://policies.google.com/technologies/partner-sites?hl=ja"
+							rel="noopener noreferrer">Googleの「サービスを使用するサイトやアプリから収集した情報の使用」</a
+						>をご確認ください。
+					</p>
+
+					<h2>Cookieの管理</h2>
+					<p>
+						利用者はブラウザの設定でCookieを無効にできます。また、Googleの<a
+							href="https://myadcenter.google.com/"
+							rel="noopener noreferrer">マイ アド センター</a
+						>で、広告のカスタマイズに使用される情報を確認・管理できます。Cookieを無効にすると、一部の広告やサイト機能が正しく動作しない場合があります。
+					</p>
+
+					<h2>同意管理について</h2>
+					<p>
+						欧州経済領域、英国、スイスなど、同意の取得が必要な地域からアクセスした場合は、Googleの認定を受けた同意管理メッセージを表示し、広告配信に関する選択肢を提供します。
+					</p>
+
+					<h2>外部サイトへのリンク</h2>
+					<p>
+						当サイトから移動した外部サイトで提供される情報やサービスについては、各サイトのプライバシーポリシーが適用されます。
+					</p>
+
+					<h2>お問い合わせ</h2>
+					<p>
+						本ポリシーに関するお問い合わせは、<a href="mailto:contact@kokugosensei.com"
+							>contact@kokugosensei.com</a
+						>までご連絡ください。
+					</p>
+
+					<p><time datetime="2026-08-31">2026年8月31日 制定</time></p>
+				</div>
+			</section>
+		</main>
+		<Footer />
+	</body>
+</html>

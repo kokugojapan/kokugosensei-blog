@@ -86,8 +86,27 @@ const breadcrumbSchema = {
 				<div class="prose">
 					<slot />
 				</div>
+				<aside class="ad-slot" aria-label="広告" data-article-ad>
+					<span class="ad-label">広告</span>
+					<ins
+						class="adsbygoogle"
+						style="display:block; text-align:center;"
+						data-ad-layout="in-article"
+						data-ad-format="fluid"
+						data-ad-client="ca-pub-8888044549970419"
+						data-ad-slot="8421877463"></ins>
+				</aside>
 			</article>
 		</main>
 		<Footer />
+		<script is:inline>
+			const prose = document.querySelector('.prose');
+			const ad = document.querySelector('[data-article-ad]');
+			if (prose && ad) {
+				const paragraphs = Array.from(prose.children).filter((element) => element.tagName === 'P');
+				(paragraphs[1] ?? paragraphs[0])?.after(ad);
+				(window.adsbygoogle = window.adsbygoogle || []).push({});
+			}
+		</script>
 	</body>
 </html>

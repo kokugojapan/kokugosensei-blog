@@ -10,10 +10,12 @@ interface Props {
 	description: string;
 	image?: ImageMetadata;
 	type?: 'website' | 'article';
+	includeAds?: boolean;
 }
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
-const { title, description, image = FallbackImage, type = 'website' } = Astro.props;
+const { title, description, image = FallbackImage, type = 'website', includeAds = true } =
+	Astro.props;
 ---
 
 <!-- Global Metadata -->
@@ -40,12 +42,17 @@ const { title, description, image = FallbackImage, type = 'website' } = Astro.pr
 />
 
 <!-- Google AdSense -->
-<meta name="google-adsense-account" content="ca-pub-8888044549970419" />
-<script
-	async
-	src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8888044549970419"
-	crossorigin="anonymous"
-	is:inline></script>
+{includeAds && <meta name="google-adsense-account" content="ca-pub-8888044549970419" />}
+{
+	includeAds && (
+		<script
+			async
+			src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8888044549970419"
+			crossorigin="anonymous"
+			is:inline
+		></script>
+	)
+}
 
 <!-- Canonical URL -->
 <link rel="canonical" href={canonicalURL} />
