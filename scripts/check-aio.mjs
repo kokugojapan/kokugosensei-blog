@@ -42,6 +42,7 @@ assert.match(home, /href="\/privacy\/"/);
 
 const privacy = fs.readFileSync(path.join(root, 'privacy/index.html'), 'utf8');
 assert.doesNotMatch(privacy, /pagead2\.googlesyndication\.com|google-adsense-account|data-ad-slot=/);
+assert.match(privacy, /国語先生\.COMおよび国語先生\.COM ブログ/);
 assert.match(privacy, /Google AdSense/);
 assert.match(privacy, /第三者配信事業者/);
 assert.match(privacy, /policies\.google\.com\/technologies\/partner-sites/);
