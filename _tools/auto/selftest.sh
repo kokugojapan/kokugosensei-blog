@@ -15,6 +15,8 @@ grep -q -- '"failIfUnavailable":true' "$RUNNER"
 grep -q -- '"allowUnsandboxedCommands":false' "$RUNNER"
 grep -q -- '--strict-mcp-config' "$RUNNER"
 grep -q -- "grep -Eq 'この記事では|本記事では'" "$RUNNER"
+grep -q 'stdout (last 200 lines)' "$RUNNER"
+grep -q 'rm -f "$CLAUDE_ERR_TMP"' "$RUNNER"
 grep -q 'ロードマップ文は使わず' "$PROMPT"
 if grep -Eq 'bypassPermissions|dangerously-bypass-approvals-and-sandbox' "$RUNNER"; then
   echo "SELFTEST_FAIL unsafe bypass flag found" >&2

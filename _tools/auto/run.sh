@@ -172,13 +172,22 @@ PROMPT="${PROMPT}
 FILE="src/content/blog/$SLUG.md"
 check_sandbox_dependency bwrap "$EXPECTED_BWRAP_SHA256" || exit 0
 check_sandbox_dependency socat "$EXPECTED_SOCAT_SHA256" || exit 0
-CLAUDE_OUT=$(run_claude "$PROMPT" 2>>"$ERR_LOG")
+CLAUDE_ERR_TMP="$STATE_DIR/claude_stderr.$$.tmp"
+CLAUDE_OUT=$(run_claude "$PROMPT" 2>"$CLAUDE_ERR_TMP")
 CLAUDE_RC=$?
 printf '%s\n' "$CLAUDE_OUT" | grep '^KOKUGO_BLOG_META' >> "$LOG_FILE" || true
 if [ "$CLAUDE_RC" -ne 0 ]; then
   log "WARN: claude exited $CLAUDE_RC"
+  # claudeのエラーはstderrでなくstdoutに出ることがある（例: OAuth認証失敗）ため両方残す。
+  {
+    echo "[$(TS)] claude exited $CLAUDE_RC — stderr:"
+    cat "$CLAUDE_ERR_TMP"
+    echo "[$(TS)] claude exited $CLAUDE_RC — stdout (last 200 lines):"
+    printf '%s\n' "$CLAUDE_OUT" | tail -200
+  } >> "$ERR_LOG"
   "$NOTIFY_FAIL" "$JOB" "$CLAUDE_RC" "$ERR_LOG" "claude exited"
 fi
+rm -f "$CLAUDE_ERR_TMP"
 
 if [ ! -f "$FILE" ]; then
   log "生成ファイルなし: $FILE（生成失敗）"
