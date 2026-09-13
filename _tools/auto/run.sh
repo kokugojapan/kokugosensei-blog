@@ -39,6 +39,7 @@ NOTIFY_SLACK="$HOME/.local/bin/notify-slack.sh"   # VPS側のバナー代替
 # タイムアウト: macOSはcoreutilsのgtimeout、Linuxは標準のtimeout
 GTIMEOUT=$(command -v gtimeout 2>/dev/null || command -v timeout 2>/dev/null || true)
 TMPL="$REPO/_tools/auto/prompt.tmpl.md"
+QUARANTINE_GENERATED="$REPO/_tools/auto/quarantine-generated-untracked.sh"
 JOB="kokugo-blog-auto"
 TS() { TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M:%S'; }
 TODAY=$(TZ=Asia/Tokyo date '+%Y-%m-%d')
@@ -91,6 +92,18 @@ check_sandbox_dependency() {
     "$NOTIFY_FAIL" "$JOB" 1 "$ERR_LOG" "sandbox dependency checksum mismatch: $name"
     return 1
   fi
+}
+
+# Claude実行前はcleanを確認済みなので、この時点のブログ配下untracked regular fileは今回の生成物。
+# 失敗時も復旧用領域に名前と内容を残し、次回のpreflightを汚さない。
+quarantine_generated_untracked() {
+  local reason="$1" cleanup
+  if ! cleanup=$(bash "$QUARANTINE_GENERATED" "$REPO" "$STATE_DIR" "$reason" 2>>"$ERR_LOG"); then
+    log "生成残置ファイルの退避に失敗: reason=$reason"
+    "$NOTIFY_FAIL" "$JOB" 1 "$ERR_LOG" "generated-file quarantine failed"
+    return 1
+  fi
+  log "$cleanup"
 }
 
 # キルスイッチ
@@ -186,12 +199,16 @@ if [ "$CLAUDE_RC" -ne 0 ]; then
     printf '%s\n' "$CLAUDE_OUT" | tail -200
   } >> "$ERR_LOG"
   "$NOTIFY_FAIL" "$JOB" "$CLAUDE_RC" "$ERR_LOG" "claude exited"
+  rm -f "$CLAUDE_ERR_TMP"
+  quarantine_generated_untracked "claude_nonzero" || exit 0
+  exit 0
 fi
 rm -f "$CLAUDE_ERR_TMP"
 
-if [ ! -f "$FILE" ]; then
+if [ ! -f "$FILE" ] || [ -L "$FILE" ]; then
   log "生成ファイルなし: $FILE（生成失敗）"
   "$NOTIFY_FAIL" "$JOB" 1 "$ERR_LOG" "no output file"
+  quarantine_generated_untracked "missing_expected_output" || exit 0
   exit 0
 fi
 
@@ -201,6 +218,7 @@ if [ -n "$UNEXPECTED" ]; then
   log "Claudeが指定記事以外を変更したため中断。"
   printf '%s\n' "$UNEXPECTED" >> "$ERR_LOG"
   "$NOTIFY_FAIL" "$JOB" 1 "$ERR_LOG" "unexpected write-set"
+  quarantine_generated_untracked "unexpected_write_set" || exit 0
   exit 0
 fi
 
