@@ -54,6 +54,32 @@ const { title, description, image = FallbackImage, type = 'website', includeAds 
 	)
 }
 
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-ND8MTF4N3J"></script>
+<script is:inline>
+	window.dataLayer = window.dataLayer || [];
+	function gtag() {
+		dataLayer.push(arguments);
+	}
+	gtag('js', new Date());
+	gtag('config', 'G-ND8MTF4N3J');
+</script>
+
+<script>
+	import { BLOG_OUTBOUND_EVENT, buildOutboundEvent, classifyOutboundAction } from '../scripts/outboundTracking.js';
+
+	document.addEventListener('click', (event) => {
+		if (!(event.target instanceof Element)) return;
+		const link = event.target.closest('a[href]');
+		if (!link) return;
+
+		const actionName = classifyOutboundAction(link.href);
+		const eventParams = actionName && buildOutboundEvent(actionName, window.location.pathname);
+		const gtag = (window as typeof window & { gtag?: (...args: unknown[]) => void }).gtag;
+		if (eventParams && gtag) gtag('event', BLOG_OUTBOUND_EVENT, eventParams);
+	});
+</script>
+
 <!-- Canonical URL -->
 <link rel="canonical" href={canonicalURL} />
 

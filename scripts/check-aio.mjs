@@ -19,6 +19,17 @@ assert.deepEqual(
 assert.equal(schemas[0].author.name, '水上先生');
 assert.match(flagship, /2026年8月20日/);
 
+const comparison = fs.readFileSync(
+	path.join(root, 'blog/bungaku-setsumeibun-yomikata/index.html'),
+	'utf8',
+);
+assert.match(comparison, /<title>説明的文章と文学的文章の違い｜例文で読み方を比べる<\/title>/);
+assert.match(comparison, /2026年9月14日/);
+assert.equal((comparison.match(/<table>/g) ?? []).length, 1, 'comparison article table count');
+assert.match(comparison, /href="\/blog\/hensachi-dokkai-no-kata\/"/);
+assert.match(comparison, /href="\/blog\/kokugo-jakuten-shindan\/"/);
+assert.match(comparison, /href="https:\/\/kokugosensei\.com\/course-diagnosis\.html"/);
+
 const sitemap = fs.readFileSync(path.join(root, 'sitemap-0.xml'), 'utf8');
 assert.match(sitemap, /https:\/\/blog\.kokugosensei\.com\/blog\/kokugo-jakuten-shindan\//);
 

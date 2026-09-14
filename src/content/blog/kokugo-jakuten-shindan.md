@@ -134,3 +134,5 @@ Aで文章の地図を作り、Bで根拠へ降り、Cで答案に変換する�
 ## 個別に原因を見てほしい方へ
 
 同じ点数でも、止まっている場所は一人ずつ違います。[国語先生.COM](https://kokugosensei.com/)では、答案と解く途中の動作を見ながら、最初に直す一つを整理します。ご相談は[公式サイト](https://kokugosensei.com/)または[公式LINE](https://lin.ee/6IRtEXI)からどうぞ。
+
+答案を見ながら、どこから直すか相談したい方へ。[弱点診断パックの内容・料金を見る](https://kokugosensei.com/course-diagnosis.html)
