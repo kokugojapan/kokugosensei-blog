@@ -36,7 +36,7 @@ CLAUDE_SANDBOX_BIN="${CLAUDE_SANDBOX_BIN:-$STATE_DIR/sandbox-bin}"
 EXPECTED_BWRAP_SHA256="77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c"
 EXPECTED_SOCAT_SHA256="4ba71cb9e75952234ca0f3af74db33ba017d6d8c66b1ccd323e80aa9bd80f0a9"
 NOTIFY_FAIL="$HOME/.local/bin/notify-failure.sh"
-TN="/opt/homebrew/bin/terminal-notifier"          # macOSのみ
+TN="${KOKUGO_BLOG_TN:-/opt/homebrew/bin/terminal-notifier}"   # macOSのみ（selftestは存在しないパスへ差し替える）
 NOTIFY_SLACK="$HOME/.local/bin/notify-slack.sh"   # VPS側のバナー代替
 # タイムアウト: macOSはcoreutilsのgtimeout、Linuxは標準のtimeout
 GTIMEOUT=$(command -v gtimeout 2>/dev/null || command -v timeout 2>/dev/null || true)
@@ -198,16 +198,19 @@ log "選定: slug=$SLUG cluster=$CLUSTER pubDate=$PUBDATE"
 EXHAUST=$(TZ=Asia/Tokyo date -d "$TODAY $((REMAINING + 1)) days" '+%Y-%m-%d' 2>/dev/null \
   || TZ=Asia/Tokyo date -j -v+"$((REMAINING + 1))"d -f '%Y-%m-%d' "$TODAY" '+%Y-%m-%d' 2>/dev/null)
 log "KOKUGO_BLOG_META status=selected slug=$SLUG remaining=$REMAINING exhaust=$EXHAUST"
-# 残り7本以下なら補充を促す。同じ状態の通知は初回＋継続中12時間ごと（2026-08-24の判断。05:30の定時起動では1日1通）。
-# 印は8本以上に戻ったら消し、次に減ったときはすぐ知らせる。DRY_RUNは通知しない。
+# 残り7本以下なら補充を促す。同じ状態の通知は JST の1日1通まで、かつ前回から12時間以上あける
+# （依頼の「1日1回」と2026-08-24の判断「初回＋継続中12時間ごと」の両方を満たす。同じ日の再実行や2本目のtimerでは2通目を出さない）。
+# 印（「epoch秒 送った日」）は8本以上に戻ったら消し、次に減ったときはすぐ知らせる。DRY_RUNは通知しない。
 BACKLOG_NOTICE="$STATE_DIR/backlog-low-notified"
 if [ "$REMAINING" -gt 7 ]; then
   rm -f "$BACKLOG_NOTICE"
 elif [ -z "$DRY_RUN" ]; then
-  BACKLOG_LAST=$(cat "$BACKLOG_NOTICE" 2>/dev/null); case "$BACKLOG_LAST" in ''|*[!0-9]*) BACKLOG_LAST=0 ;; esac
-  if [ $(( $(date +%s) - BACKLOG_LAST )) -ge 43200 ]; then
+  BACKLOG_LAST=0; BACKLOG_LAST_DAY=""
+  [ -f "$BACKLOG_NOTICE" ] && read -r BACKLOG_LAST BACKLOG_LAST_DAY < "$BACKLOG_NOTICE"
+  case "$BACKLOG_LAST" in ''|*[!0-9]*) BACKLOG_LAST=0 ;; esac
+  if [ "$BACKLOG_LAST_DAY" != "$TODAY" ] && [ $(( $(date +%s) - BACKLOG_LAST )) -ge 43200 ]; then
     banner "ブログ自動生成: AUTOバックログ残りわずか" "残り${REMAINING}本（$(printf '%s\n' "$EXHAUST" | awk -F- '{print $2+0 "/" $3+0}') に枯渇）。CONTENT-BACKLOG.md へ method 系を補充すると止まる（8本以上）" "Pop"
-    date +%s > "$BACKLOG_NOTICE"
+    printf '%s %s\n' "$(date +%s)" "$TODAY" > "$BACKLOG_NOTICE"
     log "AUTOバックログ残り${REMAINING}本を通知（枯渇 $EXHAUST）"
   fi
 fi

@@ -1,7 +1,7 @@
 #!/bin/bash
 # run.sh の「AUTOバックログ残数（META・残り7本以下の通知）」と「当日公開済みなら何もしない」を、
 # 一時ディレクトリの偽repo・偽通知で run.sh を実際に流して確かめる。selftest.sh から呼ぶ。単独でも実行できる。
-# 本物の state・ログ・Slack・Claude には触れない（HOME も一時ディレクトリ）。どの回も生成の手前
+# 本物の state・ログ・Slack・Macの通知・Claude には触れない（HOME も一時ディレクトリ）。どの回も生成の手前
 # （sandbox部品の検査）で止まるので、Claude も push も呼ばれない。
 set -euo pipefail
 
@@ -51,9 +51,10 @@ G push -q -u origin HEAD 2>/dev/null
 printf 't02\n' > "$T/state/done.txt"
 
 run() {  # run [VAR=値 ...]  呼出し元の環境変数（DRY_RUN・*_BIN など）は持ち込まない
+  # KOKUGO_BLOG_TN: Macの本物の terminal-notifier を呼ばず、偽の notify-slack へ流す。
   env -i PATH="$PATH" HOME="$T/home" TMPDIR="$T" \
     KOKUGO_BLOG_REPO="$T/repo" KOKUGO_BLOG_STATE="$T/state" KOKUGO_BLOG_LOGDIR="$T/logs" \
-    CLAUDE_BIN="$T/no-claude" CLAUDE_SANDBOX_BIN="$T/sandbox-empty" "$@" bash "$RUNNER" \
+    KOKUGO_BLOG_TN="$T/no-tn" CLAUDE_BIN="$T/no-claude" CLAUDE_SANDBOX_BIN="$T/sandbox-empty" "$@" bash "$RUNNER" \
     || fail "run.sh rc=$?"
   [ ! -e "$T/state/lock" ] || fail "lock left behind"
   ! grep -q 'WARN: claude exited\|公開成功' "$LOG" || fail "reached generation or publish"
@@ -70,14 +71,21 @@ grep -qF "KOKUGO_BLOG_META status=selected slug=t03 remaining=3 exhaust=$exhaust
 [ "$(calls)" -eq 1 ] || fail "low-backlog notice must be sent once"
 grep -qF "残り3本（$(md "$exhaust") に枯渇）" "$T/notify-slack.calls" || fail "notice text"
 grep -q 'Claude sandbox dependency missing' "$LOG" || fail "must stop before generation"
-[ -s "$STAMP" ] || fail "notice stamp missing"
+grep -qx "[0-9][0-9]* $TODAY" "$STAMP" || fail "notice stamp must hold epoch and today"
 
-# 2) 12時間以内の再実行では送らない。12時間たてば継続中として再送する。
+# 2) 送るのは JST の1日1通まで、かつ前回から12時間以上あいたときだけ（初回＋継続中12時間ごと）。
 run
 [ "$(calls)" -eq 1 ] || fail "notice must be throttled within 12h"
-echo $(( $(date +%s) - 43200 )) > "$STAMP"
+echo "$(( $(date +%s) - 43200 )) $TODAY" > "$STAMP"     # 同じ日の2回目（手動再実行・2本目のtimer）
 run
-[ "$(calls)" -eq 2 ] || fail "notice must repeat after 12h"
+[ "$(calls)" -eq 1 ] || fail "notice must not be sent twice on the same day"
+echo "$(( $(date +%s) - 39600 )) $YESTERDAY" > "$STAMP" # 前日18:30に送り今日05:30（11時間）
+run
+[ "$(calls)" -eq 1 ] || fail "notice must wait 12h even on a new day"
+echo "$(( $(date +%s) - 43200 )) $YESTERDAY" > "$STAMP"
+run
+[ "$(calls)" -eq 2 ] || fail "notice must repeat after 12h on a new day"
+grep -qx "[0-9][0-9]* $TODAY" "$STAMP" || fail "stamp must be renewed to today"
 
 # 3) 残り8本（補充後）: 通知せず、印を消す（次に減ったらすぐ知らせる）。
 backlog 11

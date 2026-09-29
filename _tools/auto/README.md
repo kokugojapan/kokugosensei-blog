@@ -15,7 +15,7 @@
 | `_tools/auto/prompt.tmpl.md` | 生成レシピ（信頼境界・NG・文体・自己点検） |
 | `_tools/auto/selftest.sh` | sandbox・bypass禁止・候補選定を確認する最小self-test |
 | `_tools/auto/selftest-backlog-guard.sh` | 残数META・残り7本以下の通知・当日公開済みガードを偽repoで実走確認（selftest.shから呼ぶ。単独実行も可） |
-| `~/.local/state/kokugo-blog-auto/backlog-low-notified` | 残数通知を最後に送った時刻（epoch秒）。8本以上に戻ると消える |
+| `~/.local/state/kokugo-blog-auto/backlog-low-notified` | 残数通知を最後に送った時刻と日付（`epoch秒 YYYY-MM-DD`、JST）。8本以上に戻ると消える |
 | `_tools/auto/com.shohei.kokugo-blog-auto.plist` | 旧Mac launchd定義（現在はdisabled。VPS systemdが単独owner） |
 | `~/.local/state/kokugo-blog-auto/done.txt` | 生成済みslug台帳（重複防止） |
 | `~/Library/Logs/automation/kokugo-blog-auto.log` | 実行ログ |
@@ -50,7 +50,7 @@ systemd timer の `OnCalendar` で時刻を変える（現状は1回1本）。�
 
 - 当日公開済みなら何もしない: lock取得の直後に `kokugo-blog-auto.published.log` を見て、`- 今日の日付` の行があれば `already published today` と `KOKUGO_BLOG_META status=skipped_published_today` をログに残して exit 0 する（同じpubDateの2本目を出さない）。`DRY_RUN=1` は公開しないので対象外。
 - 残数: 選定のあと `KOKUGO_BLOG_META status=selected slug=… remaining=N exhaust=YYYY-MM-DD` をログに残す。N は今日の1本を除いた未生成のAUTO候補数、exhaust は1日1本で進んだときに初めて公開0本になる日。
-- 通知: N≤7 なら「残りN本（M/D に枯渇）」をSlack（Macはバナー）へ送る。同じ状態の再送は12時間あけ（初回＋継続中12時間ごと）、05:30の定時起動では1日1通。N≥8 に戻ると印を消し、次に減ったときはすぐ送る。`DRY_RUN=1` では送らない。
+- 通知: N≤7 なら「残りN本（M/D に枯渇）」をSlack（Macはバナー）へ送る。同じ状態の通知は JST の1日1通まで、かつ前回から12時間以上あけて送る（初回＋継続中12時間ごと）。同じ日の手動再実行や2本目のtimerでは2通目を出さない。前日の夕方に初めて送った場合、翌朝は12時間未満なので送らず、その次の起動で送る。N≥8 に戻ると印を消し、次に減ったときはすぐ送る。`DRY_RUN=1` では送らない。
 - 通知が来たら `CONTENT-BACKLOG.md` へ method 系を補充する（8本以上で止まる）。
 
 ## 注意
