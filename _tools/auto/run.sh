@@ -30,8 +30,6 @@ ERR_LOG="$LOG_DIR/kokugo-blog-auto.err.log"
 PUB_LOG="$LOG_DIR/kokugo-blog-auto.published.log"
 CLAUDE="${CLAUDE_BIN:-$HOME/.local/bin/claude}"
 CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-5}"
-CODEX="${CODEX_BIN:-$HOME/.local/bin/codex}"
-CODEX_MODEL="${KOKUGO_BLOG_CODEX_MODEL:-gpt-5.6-terra}"
 CLAUDE_SANDBOX_BIN="${CLAUDE_SANDBOX_BIN:-$STATE_DIR/sandbox-bin}"
 EXPECTED_BWRAP_SHA256="77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c"
 EXPECTED_SOCAT_SHA256="4ba71cb9e75952234ca0f3af74db33ba017d6d8c66b1ccd323e80aa9bd80f0a9"
@@ -71,21 +69,6 @@ run_claude() {
     env PATH="$CLAUDE_SANDBOX_BIN:$PATH" "$GTIMEOUT" 1200 "$CLAUDE" "${args[@]}"
   else
     env PATH="$CLAUDE_SANDBOX_BIN:$PATH" "$CLAUDE" "${args[@]}"
-  fi
-}
-
-# Claude本体のOAuth・利用枠が使えないときだけ使うlocal-only予備経路。
-# 後段のwrite-set・品質・buildガードはClaude経路と共用する。
-run_codex() {
-  local prompt="$1"
-  local args=(exec --ignore-user-config --ephemeral --sandbox workspace-write
-    --cd "$REPO" --model "$CODEX_MODEL"
-    -c model_reasoning_effort=xhigh -c service_tier=default
-    --skip-git-repo-check -)
-  if [ -n "$GTIMEOUT" ]; then
-    printf '%s\n' "$prompt" | "$GTIMEOUT" 1200 "$CODEX" "${args[@]}"
-  else
-    printf '%s\n' "$prompt" | "$CODEX" "${args[@]}"
   fi
 }
 
@@ -215,42 +198,12 @@ if [ "$CLAUDE_RC" -ne 0 ]; then
     echo "[$(TS)] claude exited $CLAUDE_RC — stdout (last 200 lines):"
     printf '%s\n' "$CLAUDE_OUT" | tail -200
   } >> "$ERR_LOG"
+  "$NOTIFY_FAIL" "$JOB" "$CLAUDE_RC" "$ERR_LOG" "claude exited"
   rm -f "$CLAUDE_ERR_TMP"
-  quarantine_generated_untracked "claude_nonzero_before_codex" || exit 0
-  if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
-    log "Claude失敗後も作業ツリーがcleanでないためCodex fallbackを中断。"
-    "$NOTIFY_FAIL" "$JOB" "$CLAUDE_RC" "$ERR_LOG" "claude failed and left dirty tree"
-    exit 0
-  fi
-  if [ ! -x "$CODEX" ]; then
-    log "Codex fallback missing: $CODEX"
-    "$NOTIFY_FAIL" "$JOB" "$CLAUDE_RC" "$ERR_LOG" "claude exited; codex fallback missing"
-    exit 0
-  fi
-
-  log "Claude非ゼロのためlocal-only Codex fallbackを開始。"
-  CODEX_ERR_TMP="$STATE_DIR/codex_stderr.$$.tmp"
-  CODEX_OUT=$(run_codex "$PROMPT" 2>"$CODEX_ERR_TMP")
-  CODEX_RC=$?
-  printf '%s\n' "$CODEX_OUT" | grep '^KOKUGO_BLOG_META' >> "$LOG_FILE" || true
-  if [ "$CODEX_RC" -ne 0 ]; then
-    log "WARN: codex fallback exited $CODEX_RC"
-    {
-      echo "[$(TS)] codex fallback exited $CODEX_RC — stderr:"
-      cat "$CODEX_ERR_TMP"
-      echo "[$(TS)] codex fallback exited $CODEX_RC — stdout (last 200 lines):"
-      printf '%s\n' "$CODEX_OUT" | tail -200
-    } >> "$ERR_LOG"
-    "$NOTIFY_FAIL" "$JOB" "$CODEX_RC" "$ERR_LOG" "claude and codex fallback exited"
-    rm -f "$CODEX_ERR_TMP"
-    quarantine_generated_untracked "codex_nonzero" || exit 0
-    exit 0
-  fi
-  rm -f "$CODEX_ERR_TMP"
-  log "Claude非ゼロからCodex fallbackで生成継続。"
-else
-  rm -f "$CLAUDE_ERR_TMP"
+  quarantine_generated_untracked "claude_nonzero" || exit 0
+  exit 0
 fi
+rm -f "$CLAUDE_ERR_TMP"
 
 if [ ! -f "$FILE" ] || [ -L "$FILE" ]; then
   log "生成ファイルなし: $FILE（生成失敗）"
@@ -326,7 +279,7 @@ fi
 git add "$FILE"
 if git commit -q -m "自動記事: $TITLE
 
-CONTENT-BACKLOG よりVPS自動生成（$CLUSTER）。合格実績・生徒情報・本名は不使用。" 2>>"$ERR_LOG"; then
+CONTENT-BACKLOG よりVPS Claudeで自動生成（$CLUSTER）。合格実績・生徒情報・本名は不使用。" 2>>"$ERR_LOG"; then
   if git push -q origin main 2>>"$ERR_LOG"; then
     echo "$SLUG" >> "$DONE"
     printf -- "- %s  %s  https://blog.kokugosensei.com/blog/%s/  (%s字)\n" "$TODAY" "$TITLE" "$SLUG" "$BODYCHARS" >> "$PUB_LOG"
