@@ -8,6 +8,8 @@ PROMPT="$REPO_DIR/_tools/auto/prompt.tmpl.md"
 BACKLOG="$REPO_DIR/CONTENT-BACKLOG.md"
 
 bash -n "$RUNNER"
+# AUTOバックログ残数（META・残り7本以下の通知）と当日公開済みガードを、偽repoで run.sh を流して確かめる。
+bash "$REPO_DIR/_tools/auto/selftest-backlog-guard.sh"
 grep -q -- '--model "$CLAUDE_MODEL"' "$RUNNER"
 grep -q -- '--permission-mode dontAsk' "$RUNNER"
 grep -q -- '--tools "Read,Write,Edit,Glob,Grep"' "$RUNNER"

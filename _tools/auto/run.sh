@@ -34,7 +34,7 @@ CLAUDE_SANDBOX_BIN="${CLAUDE_SANDBOX_BIN:-$STATE_DIR/sandbox-bin}"
 EXPECTED_BWRAP_SHA256="77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c"
 EXPECTED_SOCAT_SHA256="4ba71cb9e75952234ca0f3af74db33ba017d6d8c66b1ccd323e80aa9bd80f0a9"
 NOTIFY_FAIL="$HOME/.local/bin/notify-failure.sh"
-TN="/opt/homebrew/bin/terminal-notifier"          # macOSのみ
+TN="${KOKUGO_BLOG_TN:-/opt/homebrew/bin/terminal-notifier}"   # macOSのみ（selftestは存在しないパスへ差し替える）
 NOTIFY_SLACK="$HOME/.local/bin/notify-slack.sh"   # VPS側のバナー代替
 # タイムアウト: macOSはcoreutilsのgtimeout、Linuxは標準のtimeout
 GTIMEOUT=$(command -v gtimeout 2>/dev/null || command -v timeout 2>/dev/null || true)
@@ -113,6 +113,14 @@ if [ -f "$STATE_DIR/disabled" ]; then log "disabled, skip."; exit 0; fi
 if ! mkdir "$LOCK" 2>/dev/null; then log "already running, skip."; exit 0; fi
 trap 'rc=$?; rmdir "$LOCK" 2>/dev/null; [ "$rc" -eq 0 ] || "$NOTIFY_FAIL" "'"$JOB"'" "$rc" "'"$ERR_LOG"'"' EXIT
 
+# 1日1本の安全弁: 当日の公開記録があれば何もしない（公開済みの日に再実行しても同じpubDateの2本目を出さない）。
+# lock取得後に見るので、先行実行が公開を書き終えてから判定される。DRY_RUNは公開しないので対象外。
+if [ -z "$DRY_RUN" ] && [ -f "$PUB_LOG" ] && grep -q "^- $TODAY " "$PUB_LOG"; then
+  log "already published today ($TODAY), skip."
+  log "KOKUGO_BLOG_META status=skipped_published_today"
+  exit 0
+fi
+
 log "start ($TODAY)"
 cd "$REPO" || { log "cd failed"; exit 1; }
 
@@ -144,12 +152,13 @@ CAND=$(awk -F'|' '
   }
 ' CONTENT-BACKLOG.md)
 
-SLUG=""; TITLE=""; KW=""; CLUSTER=""
+# 最上位の未生成を選び、今日の1本を除いた未生成数（残数）も数える。
+SLUG=""; TITLE=""; KW=""; CLUSTER=""; REMAINING=0
 while IFS=$'\t' read -r r s t k c; do
   [ -z "$s" ] && continue
   [ -f "src/content/blog/$s.md" ] && continue
   grep -qxF "$s" "$DONE" 2>/dev/null && continue
-  SLUG="$s"; TITLE="$t"; KW="$k"; CLUSTER="$c"; break
+  if [ -z "$SLUG" ]; then SLUG="$s"; TITLE="$t"; KW="$k"; CLUSTER="$c"; else REMAINING=$((REMAINING + 1)); fi
 done <<< "$CAND"
 
 if [ -z "$SLUG" ]; then
@@ -167,6 +176,27 @@ ANGLE=$(awk -F'|' -v sl="$SLUG" '$0 ~ sl {a=$9; gsub(/^[[:space:]]+|[[:space:]]+
 PUBDATE="$TODAY"
 
 log "選定: slug=$SLUG cluster=$CLUSTER pubDate=$PUBDATE"
+
+# 残数と枯渇日（1日1本なら今日の分のあと REMAINING 日は公開でき、その翌日から skip になる）。
+EXHAUST=$(TZ=Asia/Tokyo date -d "$TODAY $((REMAINING + 1)) days" '+%Y-%m-%d' 2>/dev/null \
+  || TZ=Asia/Tokyo date -j -v+"$((REMAINING + 1))"d -f '%Y-%m-%d' "$TODAY" '+%Y-%m-%d' 2>/dev/null)
+log "KOKUGO_BLOG_META status=selected slug=$SLUG remaining=$REMAINING exhaust=$EXHAUST"
+# 残り7本以下なら補充を促す。同じ状態の通知は JST の1日1通まで、かつ前回から12時間以上あける
+# （依頼の「1日1回」と2026-08-24の判断「初回＋継続中12時間ごと」の両方を満たす。同じ日の再実行や2本目のtimerでは2通目を出さない）。
+# 印（「epoch秒 送った日」）は8本以上に戻ったら消し、次に減ったときはすぐ知らせる。DRY_RUNは通知しない。
+BACKLOG_NOTICE="$STATE_DIR/backlog-low-notified"
+if [ "$REMAINING" -gt 7 ]; then
+  rm -f "$BACKLOG_NOTICE"
+elif [ -z "$DRY_RUN" ]; then
+  BACKLOG_LAST=0; BACKLOG_LAST_DAY=""
+  [ -f "$BACKLOG_NOTICE" ] && read -r BACKLOG_LAST BACKLOG_LAST_DAY < "$BACKLOG_NOTICE"
+  case "$BACKLOG_LAST" in ''|*[!0-9]*) BACKLOG_LAST=0 ;; esac
+  if [ "$BACKLOG_LAST_DAY" != "$TODAY" ] && [ $(( $(date +%s) - BACKLOG_LAST )) -ge 43200 ]; then
+    banner "ブログ自動生成: AUTOバックログ残りわずか" "残り${REMAINING}本（$(printf '%s\n' "$EXHAUST" | awk -F- '{print $2+0 "/" $3+0}') に枯渇）。CONTENT-BACKLOG.md へ method 系を補充すると止まる（8本以上）" "Pop"
+    printf '%s %s\n' "$(date +%s)" "$TODAY" > "$BACKLOG_NOTICE"
+    log "AUTOバックログ残り${REMAINING}本を通知（枯渇 $EXHAUST）"
+  fi
+fi
 
 # ---- プロンプト組み立て（テンプレを置換） ----
 PROMPT=$(sed \
