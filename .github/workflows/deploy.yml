@@ -24,6 +24,8 @@ jobs:
         uses: withastro/action@v3
         with:
           node-version: 22.23.4
+      - name: Check generated content and tracking
+        run: node scripts/check-aio.mjs && node scripts/check-outbound-tracking.mjs
 
   deploy:
     needs: build

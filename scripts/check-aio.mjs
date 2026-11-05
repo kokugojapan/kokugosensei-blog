@@ -23,12 +23,20 @@ const comparison = fs.readFileSync(
 	path.join(root, 'blog/bungaku-setsumeibun-yomikata/index.html'),
 	'utf8',
 );
-assert.match(comparison, /<title>説明的文章と文学的文章の違い｜例文で読み方を比べる<\/title>/);
-assert.match(comparison, /2026年9月14日/);
-assert.equal((comparison.match(/<table>/g) ?? []).length, 1, 'comparison article table count');
+assert.match(comparison, /<title>説明的文章と文学的文章の違いとは？種類と読み方を例文で比べる<\/title>/);
+assert.match(comparison, /2026年10月23日/);
+assert.equal((comparison.match(/<table>/g) ?? []).length, 2, 'comparison article table count');
 assert.match(comparison, /href="\/blog\/hensachi-dokkai-no-kata\/"/);
 assert.match(comparison, /href="\/blog\/kokugo-jakuten-shindan\/"/);
 assert.match(comparison, /href="https:\/\/kokugosensei\.com\/course-diagnosis\.html"/);
+
+const summary = fs.readFileSync(
+	path.join(root, 'blog/yoyakubun-kuran-taio/index.html'),
+	'utf8',
+);
+assert.equal([...'著者で本を選ぶ'].length, 7);
+assert.match(summary, /「著者で本を選ぶ」は七字/);
+assert.doesNotMatch(summary, /「著者で本を選ぶ」は八字/);
 
 const sitemap = fs.readFileSync(path.join(root, 'sitemap-0.xml'), 'utf8');
 assert.match(sitemap, /https:\/\/blog\.kokugosensei\.com\/blog\/kokugo-jakuten-shindan\//);
