@@ -24,7 +24,7 @@ const comparison = fs.readFileSync(
 	'utf8',
 );
 assert.match(comparison, /<title>説明的文章と文学的文章の違いとは？種類と読み方を例文で比べる<\/title>/);
-assert.match(comparison, /2026年10月23日/);
+assert.match(comparison, /2026年11月20日/);
 assert.equal((comparison.match(/<table>/g) ?? []).length, 2, 'comparison article table count');
 assert.match(comparison, /href="\/blog\/hensachi-dokkai-no-kata\/"/);
 assert.match(comparison, /href="\/blog\/kokugo-jakuten-shindan\/"/);
