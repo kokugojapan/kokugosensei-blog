@@ -37,3 +37,30 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # 公開後に、このpushで追加・変更した記事のURLを IndexNow（Bing ほか）へ通知する。
+  # 失敗してもデプロイは成功扱いのまま。
+  indexnow:
+    needs: deploy
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Notify IndexNow
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          KEY: a074886c7a35d5fe53f2ee568ee4f4c1
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then BEFORE="$AFTER^"; fi
+          slugs=$(git diff --name-only --diff-filter=AM "$BEFORE" "$AFTER" -- 'src/content/blog/*.md' | sed 's|src/content/blog/||; s|\.md$||')
+          if [ -z "$slugs" ]; then echo "変更記事なし"; exit 0; fi
+          urls=$(printf '%s\n' $slugs | sed 's|.*|"https://blog.kokugosensei.com/blog/&/"|' | paste -sd, -)
+          body="{\"host\":\"blog.kokugosensei.com\",\"key\":\"$KEY\",\"keyLocation\":\"https://blog.kokugosensei.com/$KEY.txt\",\"urlList\":[$urls]}"
+          echo "$body"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json; charset=utf-8' --data "$body")
+          echo "IndexNow HTTP $code"
+          case "$code" in 200|202) ;; *) exit 1 ;; esac
