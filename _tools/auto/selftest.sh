@@ -124,4 +124,16 @@ recovery=$(printf '%s\n' "$result" | sed -n 's/.* recovery=//p')
 [ ! -e "$FIXTURE/$spaced_typo" ] && [ -f "$recovery/$spaced_typo" ]
 cmp -s "$STATE/spaced-original" "$recovery/$spaced_typo"
 
+# 自動補充の機械検査: 既存記事の言い換えと対象外クラスタを捨て、新しいテーマは通す（追記はしない）。
+grep -q 'maybe_replenish "$REMAINING"' "$RUNNER"
+grep -q -- '--tools "Read,Glob,Grep"' "$RUNNER"
+CAND="$STATE/replenish-cand.txt"
+cat > "$CAND" <<'EOF'
+| 中学受験国語の記述で字数が合わないときの削り方と増やし方 | `selftest-dup-jisuu` | 中学受験 国語 記述 字数 | 記述深掘り | 字数が足りない答案と多すぎる答案を並べ、核になる要素を先に決めてから肉付けの順に直す。換言で短くする方法も扱う。検査用の行なので公開しない。 |
+| 開成中の国語で長い記述を書き切るための練習の順番 | `selftest-school` | 中学受験 国語 開成 | 志望校別 | 志望校別は自動公開の対象外なので、この行は捨てられなければならない。検査用の行なので公開しない。ここは字数を満たすための文です。 |
+| 検査用の新しいテーマで、ほかのどの記事とも重ならない題名 | `selftest-new-topic` | 中学受験 国語 検査 | 設問タイプ別（検査） | 機械検査が新しいテーマを通すことを確かめるための行。CONTENT-BACKLOG.md には追記しない。ここは字数を満たすための文で、六十字を超えるようにしている。 |
+EOF
+VRES=$(python3 "$REPO_DIR/_tools/auto/replenish_validate.py" "$REPO_DIR" "$CAND" 2000-01-01 --dry-run)
+[ "$(printf '%s\n' "$VRES" | head -1)" = "ADDED=1 REJECTED=2" ] || { echo "SELFTEST_FAIL replenish_validate: $VRES" >&2; exit 1; }
+
 echo "SELFTEST_OK auto_candidates=$AUTO_CANDIDATES"
