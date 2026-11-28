@@ -39,7 +39,8 @@ SECRET_PATTERNS=(
 PHONE_PATTERN='0[0-9]{1,4}-[0-9]{1,4}-[0-9]{4}'
 # Email except the one allowed
 EMAIL_PATTERN='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
-ALLOWED_EMAILS='contact@kokugosensei.com|noreply@anthropic.com'
+# .invalid は RFC 2606 の予約TLDで実在しない（selftest の偽コミッタ用）
+ALLOWED_EMAILS='contact@kokugosensei.com|noreply@anthropic.com|@[A-Za-z0-9.-]+\.invalid$'
 
 # 3) Blocked names (loaded from local file - gitignored)
 BLOCKED_NAMES_FILE="$REPO_ROOT/.githooks/blocked_names.local.txt"

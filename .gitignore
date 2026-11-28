@@ -46,3 +46,5 @@ Thumbs.db
 # Test outputs / temp
 tmp/
 .cache/
+# Added by code-review-graph
+.code-review-graph/
